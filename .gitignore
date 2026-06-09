@@ -1,0 +1,36 @@
+# ─── Dados brutos CCEE ────────────────────────────────────────────────────────
+*.csv.gz
+*.gz
+
+# ─── Base de CNPJs (Receita Federal) ─────────────────────────────────────────
+*.7z
+*.zip
+
+# ─── Arquivos intermediários e resultados gerados ────────────────────────────
+*.parquet
+*.xlsx
+*.xls
+
+# ─── Dashboards HTML gerados ─────────────────────────────────────────────────
+*.html
+
+# ─── GeoJSON em cache (baixados automaticamente na execução) ─────────────────
+*.geojson
+
+# ─── Logs de execução ────────────────────────────────────────────────────────
+logs/
+Logs/
+*.log
+
+# ─── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# ─── Sistema operacional ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

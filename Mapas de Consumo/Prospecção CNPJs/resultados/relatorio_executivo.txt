@@ -1,0 +1,32 @@
+
+RELATÓRIO EXECUTIVO - PROSPECÇÃO MERCADO LIVRE DE ENERGIA
+Data de geração: 08/06/2026 12:26
+============================================================
+
+VISÃO GERAL
+  Total de empresas identificadas:  15,095,465
+  Demanda potencial estimada:        5,526,288 MW
+  Estados cobertos:                  28
+
+  Tier 1 (muito alta intensidade):   1,326,761 (8%)
+  Tier 2 (alta intensidade):         6,745,799 (44%)
+
+DESTAQUES POR UF (Top 3 por demanda)
+  SP, MG, RJ
+
+SETORES PRIORITÁRIOS (Top 3)
+    1. Fabricação de alimentos
+  2. Fabricação de produtos de metal
+  3. Eletricidade, gás, vapor e ar condicionado
+
+MUNICÍPIO COM MAIOR POTENCIAL
+  Cód RF 7107 (SP) — 501,711 MW estimados
+
+METODOLOGIA
+  • Fonte: Dados Abertos CNPJ - Receita Federal (jun/2026)
+  • Filtros: situação cadastral ATIVA + CNAEs de alto consumo energético
+  • Demanda estimada com base em benchmarks setoriais EPE/ANEEL
+  • Tier 1: >1.000 kW médio estimado por estabelecimento
+  • Tier 2: 300-1.000 kW estimado | Tier 3: <300 kW estimado
+  • ATENÇÃO: valores são estimativas para priorização, não medições reais
+============================================================

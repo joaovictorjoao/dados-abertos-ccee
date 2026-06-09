@@ -1,0 +1,51 @@
+﻿cnae_divisao;cnae_descricao;cnae_tier;total_empresas;matrizes;demanda_total_MW;demanda_media_kW
+10;Fabricação de alimentos;1;409145;396516;245487;600
+25;Fabricação de produtos de metal;1;286978;283567;172187;600
+35;Eletricidade, gás, vapor e ar condicionado;1;23637;13420;118185;5000
+63;Tratamento de dados e hospedagem;1;78540;74384;117810;1500
+23;Fabricação de minerais não-metálicos;1;89170;84816;107004;1200
+61;Telecomunicações;1;75066;63802;75066;1000
+13;Fabricação de produtos têxteis;1;96870;94980;67809;700
+17;Fabricação de celulose e papel;1;31463;30547;37756;1200
+16;Fabricação de produtos de madeira;1;69439;67277;34720;500
+20;Fabricação de produtos químicos;1;19304;15932;28956;1500
+22;Fabricação de borracha e plástico;1;33792;31143;27034;800
+29;Fabricação de veículos automotores;1;16968;15698;25452;1500
+28;Fabricação de máquinas e equipamentos;1;25058;23058;20046;800
+08;Extração de minerais não-metálicos;1;22281;15961;17825;800
+36;Captação, tratamento e distribuição de água;1;10370;5387;15555;1500
+24;Metalurgia;1;5093;4175;15279;3000
+27;Fabricação de máquinas e equipamentos elétricos;1;9733;8437;6813;700
+07;Extração de minerais metálicos;1;3892;2747;5838;1500
+11;Fabricação de bebidas;1;10156;9225;5078;500
+51;Transporte aéreo;1;2503;1073;5006;2000
+30;Fabricação de outros equipamentos de transporte;1;3092;2753;3092;1000
+19;Fabricação de coque e biocombustíveis;1;1416;883;2832;2000
+06;Extração de petróleo e gás;1;1265;576;2530;2000
+21;Fabricação de farmoquímicos;1;1377;1002;1377;1000
+05;Extração de carvão mineral;1;153;75;130;850
+86;Atividades de atenção à saúde humana;2;895445;845785;537267;600
+49;Transporte terrestre;2;1633058;1582402;408264;250
+43;Serviços especializados de construção;2;1652025;1645679;330405;200
+46;Comércio por atacado;2;656289;569051;262516;400
+41;Construção de edifícios;2;392232;318519;117670;300
+52;Armazenagem e atividades auxiliares de transporte;2;194113;168951;116468;600
+33;Manutenção e reparação de máquinas;2;281018;277922;112407;400
+14;Confecção de artigos do vestuário;2;359392;354269;107818;300
+31;Fabricação de móveis;2;147503;145965;59001;400
+32;Fabricação de produtos diversos;2;160442;158420;56155;350
+18;Impressão e reprodução;2;92987;92084;37195;400
+38;Coleta, tratamento e disposição de resíduos;2;58686;56109;35212;600
+55;Alojamento;2;93121;88674;27936;300
+42;Obras de infraestrutura;2;53897;47402;26948;500
+15;Curtimento e artefatos de couro;2;44784;43660;17914;400
+50;Transporte aquaviário;2;15075;14040;7538;500
+37;Esgoto e atividades relacionadas;2;5821;5423;4657;800
+26;Fabricação de equipamentos eletrônicos;2;6175;5418;3088;500
+09;Serviços de apoio à extração;2;2539;1956;762;300
+12;Fabricação de produtos do fumo;2;940;841;752;800
+39;Descontaminação e serviços de gestão de resíduos;2;257;216;103;400
+47;Comércio varejista;3;5465498;5152997;1639649;300
+85;Educação;3;1101754;1066685;275438;250
+62;Atividades dos serviços de TI;3;274521;269436;109808;400
+93;Atividades esportivas e de recreação;3;181132;172956;72453;400

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(python consumo_pico_por_carga.py)"
+    ]
+  }
+}
