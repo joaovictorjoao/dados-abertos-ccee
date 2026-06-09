@@ -30,6 +30,14 @@ __pycache__/
 venv/
 .venv/
 
+# ─── IDE e ferramentas locais ────────────────────────────────────────────────
+.vscode/
+.claude/
+.idea/
+
+# ─── Logs de agentes Claude ──────────────────────────────────────────────────
+*agent-log.md
+
 # ─── Sistema operacional ─────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
