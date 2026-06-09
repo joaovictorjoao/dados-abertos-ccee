@@ -33,11 +33,8 @@ from pathlib import Path
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURAÇÃO — AJUSTAR AQUI
 # ─────────────────────────────────────────────────────────────────────────────
-ARQUIVO_ENTRADA = Path(
-    r"C:\Grugeen\Grugeen Consultoria Ltda\Mercado Livre de Energia - Documentos"
-    r"\1-PRINCIPAL\Arquivos de Medicao\Dados Abertos CCEE\Consumo Horário"
-    r"\consumo_horario_perfil_agente_202604.csv.gz"
-)
+# Ajuste o nome do arquivo conforme o mês desejado (AAAAMM)
+ARQUIVO_ENTRADA = Path(__file__).parent / "consumo_horario_perfil_agente_202604.csv.gz"
 
 # Derivado automaticamente do nome do arquivo de entrada
 _MES = ARQUIVO_ENTRADA.with_suffix("").with_suffix("").name.replace(

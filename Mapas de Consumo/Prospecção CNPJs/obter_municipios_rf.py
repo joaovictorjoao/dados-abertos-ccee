@@ -25,11 +25,8 @@ SAIDA_MUNICIPIOS = DIR_BASES / "municipios_rf.csv"
 SAIDA_PARQUET    = DIR_RESULTADOS / "estabelecimentos_energia.parquet"
 SAIDA_ENRIQUECIDO = DIR_RESULTADOS / "estabelecimentos_energia_com_municipios.parquet"
 
-# Municipios IBGE (já disponível no projeto)
-MUNICIPIOS_IBGE = Path(
-    r"c:\Grugeen\Grugeen Consultoria Ltda\Mercado Livre de Energia - Documentos"
-    r"\1-PRINCIPAL\Arquivos de Medicao\Dados Abertos CCEE\Consumo Horário\mapas\municipios_ibge.csv"
-)
+# Municipios IBGE — gerado por mapa_consumo_mensal.py na pasta mapas/
+MUNICIPIOS_IBGE = BASE_PROJETO.parent / "mapas" / "municipios_ibge.csv"
 
 RF_MUNICIPIOS_URLS = [
     # RF - tentar meses recentes

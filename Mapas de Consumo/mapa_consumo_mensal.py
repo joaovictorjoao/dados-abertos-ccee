@@ -53,11 +53,8 @@ import plotly.io as pio
 
 # ─── CONFIGURAÇÃO ─────────────────────────────────────────────────────────────
 
-ARQUIVO_ENTRADA = Path(
-    r"C:\Grugeen\Grugeen Consultoria Ltda\Mercado Livre de Energia - Documentos"
-    r"\1-PRINCIPAL\Arquivos de Medicao\Dados Abertos CCEE\Extração Consumo Horário"
-    r"\consumo_horario_perfil_agente_202604.csv.gz"
-)
+# Ajuste o nome do arquivo conforme o mês desejado (AAAAMM)
+ARQUIVO_ENTRADA = Path(__file__).parent.parent / "Extração Consumo Horário" / "consumo_horario_perfil_agente_202604.csv.gz"
 
 # PASTA_SAIDA fica ao lado do script (Mapas de Consumo/mapas),
 # compartilhando o cache de GeoJSON com mapa_prospecao_cnpjs.py
@@ -107,11 +104,8 @@ _UF_PARA_IBGE: dict[str, str] = {
 
 # ─── IDENTIDADE VISUAL GRUGEEN ────────────────────────────────────────────────
 
-_LOGO_PATH = Path(
-    r"C:\Grugeen\Grugeen Consultoria Ltda\Comercial - Documentos"
-    r"\Marketing - Marca\Marcas\RGB_Digital\_PNG_SemFundo"
-    r"\Grugeen_Marca_6.4_Assinada_Horizontal_Branca.png"
-)
+# Logo opcional — coloque o arquivo em assets/logo.png ao lado do script
+_LOGO_PATH = Path(__file__).parent / "assets" / "logo.png"
 
 # Gradiente institucional: Off-white → Verde Claro → Verde Vivo → Verde Principal → Verde Escuro
 _COLORSCALE_GRUGEEN: list[list] = [

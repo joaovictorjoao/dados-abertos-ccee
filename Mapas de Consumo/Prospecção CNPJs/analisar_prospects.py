@@ -22,12 +22,8 @@ DIR_BASES       = BASE_PROJETO / "bases"
 PARQUET_PRINCIPAL  = DIR_RESULTADOS / "estabelecimentos_energia.parquet"
 PARQUET_ENRIQUECIDO = DIR_RESULTADOS / "estabelecimentos_energia_com_municipios.parquet"
 
-# Dados CCEE de medição (arquivo de consumo horário por CNPJ)
-DIR_CCEE = Path(
-    r"c:\Grugeen\Grugeen Consultoria Ltda\Mercado Livre de Energia - Documentos"
-    r"\1-PRINCIPAL\Arquivos de Medicao\Dados Abertos CCEE\Consumo Horário\bases"
-)
-CCEE_CONSUMO_CLASSE = DIR_CCEE / "730e32b5-2945-4251-bea7-0f16e034f43e.csv"
+# Dados CCEE opcionais para cruzamento — aponte para a pasta bases/ de Extração Consumo Horário
+# DIR_CCEE = BASE_PROJETO.parent.parent / "Extração Consumo Horário" / "bases"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CNAE → Tier e seção para legibilidade

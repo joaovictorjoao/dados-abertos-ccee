@@ -5,7 +5,7 @@ e enriquece o dataset de estabelecimentos com nomes reais.
 from pathlib import Path
 import pandas as pd
 
-BASE_PROJETO   = Path(r"c:\Grugeen\Grugeen Consultoria Ltda\Mercado Livre de Energia - Documentos\1-PRINCIPAL\Arquivos de Medicao\Dados Abertos CCEE\Prospecção CNPJs")
+BASE_PROJETO   = Path(__file__).parent
 DIR_BASES      = BASE_PROJETO / "bases"
 DIR_RESULTADOS = BASE_PROJETO / "resultados"
 

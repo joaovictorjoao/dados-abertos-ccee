@@ -208,11 +208,11 @@ Todos os scripts gravam logs com timestamp em suas respectivas pastas `logs/`. C
 
 ## Licença
 
-Este projeto é de uso interno da Grugeen Consultoria. Consulte a empresa para informações sobre licenciamento e redistribuição.
+MIT License — livre para usar, modificar e distribuir com atribuição.
 
 ---
 
 ## Contato
 
 **Grugeen Consultoria Ltda**  
-[grugeen.eng.br](https://grugeen.eng.br) · joao@grugeen.eng.br
+[grugeen.eng.br](https://grugeen.eng.br)

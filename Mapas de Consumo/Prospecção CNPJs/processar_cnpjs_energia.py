@@ -29,11 +29,16 @@ import pandas as pd
 # CAMINHOS
 # ─────────────────────────────────────────────────────────────────────────────
 
-ARQUIVO_7Z       = Path(r"C:\Users\User\Downloads\Base_CNPJs.7z")
-DIR_EXTRACAO     = Path(r"C:\Users\User\Downloads\Base CNPJs\Base CNPJs")
-SETE_ZIP_EXE     = Path(r"C:\Program Files\7-Zip\7z.exe")
-
 BASE_PROJETO     = Path(__file__).parent
+
+# Coloque Base_CNPJs.7z nesta pasta antes de executar, ou ajuste o caminho abaixo
+ARQUIVO_7Z       = BASE_PROJETO / "Base_CNPJs.7z"
+DIR_EXTRACAO     = BASE_PROJETO / "Base CNPJs"
+
+# Localização do 7-Zip — ajuste se necessário
+import shutil as _shutil
+_7Z_CANDIDATOS = [Path(r"C:\Program Files\7-Zip\7z.exe"), Path(r"C:\Program Files (x86)\7-Zip\7z.exe")]
+SETE_ZIP_EXE     = Path(_shutil.which("7z") or next((p for p in _7Z_CANDIDATOS if p.exists()), _7Z_CANDIDATOS[0]))
 DIR_BASES        = BASE_PROJETO / "bases"
 DIR_RESULTADOS   = BASE_PROJETO / "resultados"
 DIR_LOGS         = BASE_PROJETO / "logs"

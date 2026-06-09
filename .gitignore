@@ -35,6 +35,9 @@ venv/
 .claude/
 .idea/
 
+# ─── Logo e assets locais (não distribuídos) ─────────────────────────────────
+assets/
+
 # ─── Logs de agentes Claude ──────────────────────────────────────────────────
 *agent-log.md
 

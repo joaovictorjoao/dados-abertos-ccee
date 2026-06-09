@@ -84,11 +84,8 @@ _UF_PARA_IBGE: dict[str, str] = {
 
 # ─── IDENTIDADE VISUAL ────────────────────────────────────────────────────────
 
-_LOGO_PATH = Path(
-    r"C:\Grugeen\Grugeen Consultoria Ltda\Comercial - Documentos"
-    r"\Marketing - Marca\Marcas\RGB_Digital\_PNG_SemFundo"
-    r"\Grugeen_Marca_6.4_Assinada_Horizontal_Branca.png"
-)
+# Logo opcional — coloque o arquivo em assets/logo.png ao lado do script
+_LOGO_PATH = Path(__file__).parent / "assets" / "logo.png"
 
 _COLORSCALE_GRUGEEN: list[list] = [
     [0.00, "#E2E2E2"],
