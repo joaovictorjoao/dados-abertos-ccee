@@ -4,7 +4,8 @@
 **Autor:** Grugeen Consultoria (João Victor) + Claude Code
 **Status:** Design aprovado em brainstorming — aguardando revisão do spec
 **Escopo:** Refatoração da camada de geração e interação dos dashboards HTML
-(`mapa_consumo_mensal.py` e `mapa_prospecao_cnpjs.py`)
+(`mapa_consumo_mensal.py` e `mapa_prospecao_cnpjs.py`) e **unificação em um único
+dashboard** com seções de consumo e prospecção que compartilham filtros e drill-down.
 
 ---
 
@@ -52,6 +53,9 @@ copiadas entre os dois scripts (`_fetch`, `_baixar_recurso`, `_normalizar`,
   dependentes/cascata, hover/seleção com drill-down, sincronização mapa↔tabela,
   persistência e exportação).
 - **Eliminar a duplicação** entre os dois dashboards via camada compartilhada.
+- **Unificar consumo e prospecção em um único dashboard** com duas seções que
+  compartilham filtros geográficos e permitem drill-down cruzado (clicar num município
+  numa seção filtra a outra).
 - Preservar o uso atual: saída em **HTML que abre sem servidor**.
 
 ### Não-objetivos (YAGNI)
@@ -64,7 +68,9 @@ copiadas entre os dois scripts (`_fetch`, `_baixar_recurso`, `_normalizar`,
 
 ### Critérios de sucesso
 
-- Os dois dashboards geram saída visualmente idêntica ao baseline atual após a migração.
+- O dashboard unificado reproduz, em suas seções, a saída visual do baseline atual.
+- Filtro geográfico aplicado vale simultaneamente para as seções consumo e prospecção.
+- Clicar num município numa seção filtra a outra (drill-down cruzado).
 - A lógica de filtro/interação tem testes automatizados que rodam sem navegador.
 - Adicionar um novo critério de filtro não exige editar o JS de renderização.
 - Zero código JavaScript dentro de f-strings Python.
@@ -115,14 +121,16 @@ Mapas de Consumo/
 │   │
 │   └── geracao/
 │       ├── gerador.py                   # injeta dados+assets no template; 2 modos de saída
-│       └── modelos.py                   # config das abas/mapas por dashboard
+│       ├── contrato.py                  # compõe consumo + prospecção num só objeto
+│       └── modelos.py                   # config das seções/abas/mapas
 │
 ├── assets/                              # camada de APRESENTAÇÃO (front real)
-│   ├── dashboard.css                    # CSS extraído (1 fonte, ambos dashboards)
+│   ├── dashboard.css                    # CSS extraído (1 fonte, todo o dashboard)
 │   ├── core/
-│   │   ├── estado.js                    # filterState central
+│   │   ├── estado.js                    # filterState central (geo compartilhado + por seção)
+│   │   ├── secoes.js                    # seletor Consumo|Prospecção; troca de seção
 │   │   ├── filtros.js                   # filtros dependentes/cascata
-│   │   ├── interacao.js                 # hover, seleção, drill-down, sync mapa↔tabela
+│   │   ├── interacao.js                 # hover, seleção, drill-down cruzado, sync mapa↔tabela
 │   │   ├── persistencia.js              # lembrar filtros + link compartilhável
 │   │   ├── exportacao.js                # CSV / imagem
 │   │   └── render.js                    # Plotly.react + troca mapa/tabela
@@ -132,12 +140,11 @@ Mapas de Consumo/
 │   ├── test_contrato.py / test_geo.py   # pytest
 │   └── core.test.js                     # lógica de filtro (Node, sem framework)
 │
-├── gerar_consumo.py                     # entrypoints finos (CLI)
-└── gerar_prospecao.py
+└── gerar_dashboard.py                   # entrypoint único (CLI): consumo + prospecção
 ```
 
-Os scripts atuais viram **entrypoints finos**: carregar dados → montar contrato →
-chamar gerador.
+O `gerar_dashboard.py` é um **entrypoint fino**: carrega os dados das duas fontes →
+monta o contrato unificado → chama o gerador.
 
 ---
 
@@ -147,10 +154,14 @@ chamar gerador.
   os dashboards importam do mesmo lugar.
 - **`<dashboard>/dados.py`** — agregação pura (equivalente às atuais `_agregar_*`,
   `_calcular_*`), retornando DataFrames. Sem HTML.
-- **`<dashboard>/contrato.py`** — converte DataFrames no dict JSON consumido pelo front.
-  É a fronteira: Python não conhece DOM; JS não conhece pandas.
-- **`geracao/gerador.py`** — função única que recebe (contrato JSON, figuras Plotly,
-  config de abas) e produz a saída em dois modos:
+- **`<dashboard>/contrato.py`** — converte os DataFrames daquela seção no fragmento JSON
+  correspondente (filtros próprios, abas, registros). É a fronteira: Python não conhece
+  DOM; JS não conhece pandas.
+- **`geracao/contrato.py`** — compõe os fragmentos de consumo e prospecção num único
+  objeto `GRUGEEN_DATA`, extraindo os filtros geográficos para o nível compartilhado
+  (`filtros_geo`).
+- **`geracao/gerador.py`** — função única que recebe (contrato JSON unificado, figuras
+  Plotly, config de seções/abas) e produz a saída em dois modos:
   - `--modo arquivos`: escreve `dashboard.html` + `.js` + `.css` lado a lado (dia a dia).
   - `--modo unico`: inlina tudo num só `.html` portátil (entrega a cliente).
   Mesma fonte; a decisão ocorre apenas na geração.
@@ -164,43 +175,66 @@ Um único objeto JSON injetado no HTML, com formato versionado e estável:
 ```js
 window.GRUGEEN_DATA = {
   versao: 1,
-  meta:    { dashboard: "consumo", referencia: "2026-04", gerado_em: "..." },
-  filtros: {                         // define os filtros e suas dependências
-    regiao:        { label: "Região", opcoes: [...] },
-    uf:            { label: "UF", depende_de: "regiao", opcoes_por: {...} },
-    distribuidora: { label: "Distribuidora", depende_de: "uf", opcoes_por: {...} }
-    // novos critérios entram aqui sem tocar no JS de renderização
+  meta:        { referencia: "2026-04", gerado_em: "..." },
+  filtros_geo: {                     // COMPARTILHADO entre as seções
+    regiao:    { label: "Região", opcoes: [...] },
+    uf:        { label: "UF", depende_de: "regiao", opcoes_por: {...} },
+    municipio: { label: "Município", depende_de: "uf", opcoes_por: {...} }
   },
-  abas: [ { id, label, tipo: "mapa"|"tabela", ... } ],
-  registros: [ ... ]                 // linhas já agregadas; filtro/recálculo no front
+  secoes: {
+    consumo: {
+      label: "Consumo",
+      filtros_proprios: {            // ex.: distribuidora, classe — só desta seção
+        distribuidora: { label: "Distribuidora", depende_de: "uf", opcoes_por: {...} }
+      },
+      abas: [ { id, label, tipo: "mapa"|"tabela", ... } ],   // 4 abas
+      registros: [ ... ]             // linhas já agregadas; filtro/recálculo no front
+    },
+    prospeccao: {
+      label: "Prospecção",
+      filtros_proprios: { ... },
+      abas: [ ... ],                 // 5 abas
+      registros: [ ... ]
+    }
+  }
 }
 ```
 
 O JS lê o contrato e se monta sozinho. **Adicionar um filtro = acrescentar uma entrada
-em `filtros`** no Python; `filtros.js` trata cascata/dependência genericamente.
+em `filtros_geo` (compartilhado) ou em `secoes.<x>.filtros_proprios`** no Python;
+`filtros.js` trata cascata/dependência genericamente. O drill-down cruzado opera sobre
+`filtros_geo.municipio`, por isso atinge as duas seções.
 
-> O schema exato de `abas`, `registros` e dos campos de cada filtro será fixado no
-> plano de implementação, derivado do que os dashboards atuais já produzem (paridade
-> com o baseline). Versionado por `versao` para evolução futura.
+> O schema exato de `abas`, `registros`, `filtros_proprios` e dos campos de cada filtro
+> será fixado no plano de implementação, derivado do que os dashboards atuais já produzem
+> (paridade com o baseline). Versionado por `versao` para evolução futura.
 
 ---
 
 ## 7. Camada Front-end
+
+**Modelo de navegação:** barra de filtros geográficos **fixa no topo**
+(Região→UF→Município) que vale para tudo; abaixo, um seletor de seção
+**Consumo | Prospecção**, cada uma com suas abas internas (4 e 5). Trocar de seção
+**preserva** o filtro geográfico aplicado.
 
 Ciclo previsível, estado central único:
 
 ```
 filterState → recalcular opções dependentes → filtrar registros → render (Plotly.react + tabela)
      ↑                                                                      │
-     └──────────────────── eventos (filtro, hover, clique, URL) ◄──────────┘
+     └──────────── eventos (filtro geo, filtro de seção, troca de seção, hover, clique, URL) ◄──────────┘
 ```
 
-- **`estado.js`** — seleção de filtros + aba ativa + modo (mapa/tabela). Função única
+- **`estado.js`** — `filterState` central: filtros geográficos **compartilhados** +
+  filtros próprios por seção + seção ativa + aba ativa + modo (mapa/tabela). Função única
   `setEstado(parcial)` dispara o re-render. Sem DOM espalhado.
-- **`filtros.js`** — lê `filtros` do contrato e monta os selects; cascata genérica via
-  `depende_de`. Novos critérios entram só pelo contrato.
-- **`interacao.js`** — tooltip configurável, destaque no hover, clique para drill-down
-  (clicar numa UF filtra para ela), sincronização mapa↔tabela.
+- **`secoes.js`** — seletor Consumo|Prospecção; troca de seção mantendo `filtros_geo`.
+- **`filtros.js`** — lê `filtros_geo` e `filtros_proprios` do contrato e monta os selects;
+  cascata genérica via `depende_de`. Novos critérios entram só pelo contrato.
+- **`interacao.js`** — tooltip configurável, destaque no hover, **drill-down cruzado**
+  (clicar num município numa seção seta `filtros_geo.municipio` → a outra seção também
+  filtra), sincronização mapa↔tabela.
 - **`persistencia.js`** — serializa `filterState` na URL (`#regiao=S&uf=SC`) → link
   compartilhável que reabre com os filtros aplicados; restaura ao carregar.
 - **`exportacao.js`** — exporta a seleção filtrada em CSV e a imagem do mapa em PNG
@@ -233,10 +267,11 @@ Cada arquivo tem propósito único — o oposto da f-string de 600 linhas.
    `Prints/` auxiliam).
 2. **Extrair `comum/`** primeiro (helpers duplicados); os scripts atuais passam a
    importar daí, sem mudar comportamento. Commit verde.
-3. **Migrar o dashboard de consumo** para a nova arquitetura, comparando contra o
-   baseline até ficar idêntico; então corrigir os bugs de hover/zoom/filtro com o JS já
-   testável.
-4. **Migrar prospecção** reaproveitando o front pronto.
+3. **Migrar consumo como primeira seção** do dashboard unificado (com a barra de filtros
+   geográficos compartilhada), comparando contra o baseline até ficar idêntico; então
+   corrigir os bugs de hover/zoom/filtro com o JS já testável.
+4. **Adicionar prospecção como segunda seção**, ligando-a ao `filterState` compartilhado
+   e habilitando o drill-down cruzado.
 5. **Só então** aplicar os novos filtros/critérios desejados — agora com segurança.
 6. Aposentar os monólitos; atualizar README.
 
@@ -251,6 +286,7 @@ Cada passo é um commit funcional → permite parar/revisar a qualquer momento.
 | Regressão visual durante a migração | Baseline + comparação aba a aba antes de mudar comportamento |
 | `file://` bloquear assets | `<script src>` clássico (não módulos ES) + modo de saída único inlined |
 | Contrato JSON divergir do que o front espera | Schema versionado (`versao`) + testes pytest no contrato |
+| HTML único com 2 datasets ficar grande demais | Modo de saída "arquivos separados" e/ou carregar registros da seção sob demanda |
 | Escopo crescer para confiabilidade de dados | Manter geocodificação/MW explicitamente no Sub-projeto B |
 
 ---
