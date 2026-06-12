@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 import pandas as pd
-from grugeen_dashboards.consumo.dados import calcular_per_capita
+from grugeen_dashboards.consumo.dados import calcular_per_capita, calcular_lacunas
 
 _LOG = logging.getLogger("t")
 
@@ -41,3 +41,30 @@ def test_per_capita_populacao_zero_ou_ausente_vira_nan():
 def test_per_capita_cria_coluna_distribuidora_se_ausente():
     out = calcular_per_capita(_geo(), _pop(), _LOG)
     assert "distribuidora" in out.columns
+
+
+def _ibge():
+    return pd.DataFrame({
+        "codigo_ibge": ["3550308", "4205407", "3304557"],  # SP, Floripa, Rio
+        "nome": ["São Paulo", "Florianópolis", "Rio de Janeiro"],
+        "uf_norm": ["SP", "SC", "RJ"],
+    })
+
+
+def test_lacunas_retorna_municipios_fora_do_dataset_com_populacao():
+    pop = pd.DataFrame({
+        "codigo_ibge": ["3550308", "4205407", "3304557"],
+        "populacao": [1_000_000.0, 500_000.0, 6_000_000.0],
+    })
+    # dataset ACL só cobre São Paulo → lacunas = Floripa e Rio
+    out = calcular_lacunas(_ibge(), pop, {"3550308"}, _LOG)
+    assert set(out["codigo_ibge"]) == {"4205407", "3304557"}
+
+
+def test_lacunas_descarta_sem_populacao():
+    pop = pd.DataFrame({
+        "codigo_ibge": ["4205407", "3304557"],
+        "populacao": [500_000.0, np.nan],
+    })
+    out = calcular_lacunas(_ibge(), pop, {"3550308"}, _LOG)
+    assert set(out["codigo_ibge"]) == {"4205407"}   # Rio cai (pop NaN)

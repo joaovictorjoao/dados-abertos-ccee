@@ -42,3 +42,25 @@ def calcular_per_capita(
     if "distribuidora" not in df_merged.columns:
         df_merged["distribuidora"] = ""
     return df_merged
+
+
+def calcular_lacunas(
+    df_municipios_ibge: pd.DataFrame,
+    df_pop: pd.DataFrame,
+    codigos_dataset: set[str],
+    logger: logging.Logger,
+) -> pd.DataFrame:
+    """Retorna municípios do IBGE sem nenhum consumidor ACL, com sua população."""
+    df = df_municipios_ibge[
+        ~df_municipios_ibge["codigo_ibge"].isin(codigos_dataset)
+    ][["codigo_ibge", "nome", "uf_norm"]].copy()
+
+    df_p = df_pop[["codigo_ibge", "populacao"]].copy()
+    df_p["codigo_ibge"] = df_p["codigo_ibge"].astype(str).str.zfill(7)
+    df = df.merge(df_p, on="codigo_ibge", how="left")
+    df = df[df["populacao"].notna() & (df["populacao"] > 0)].copy()
+    logger.info(
+        "Lacunas: %d municípios sem consumidores ACL (de %d no IBGE)",
+        len(df), len(df_municipios_ibge),
+    )
+    return df
