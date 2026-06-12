@@ -48,3 +48,52 @@ def _registros(df_per_capita: pd.DataFrame) -> list[dict]:
             "nc": int(row.get("n_consumidores") or 0),
         })
     return regs
+
+
+def _lacunas(df_lacunas: pd.DataFrame | None) -> list[dict]:
+    """Municípios sem consumidores ACL, com população > 0."""
+    if df_lacunas is None or df_lacunas.empty:
+        return []
+    out: list[dict] = []
+    for _, row in df_lacunas.iterrows():
+        ibge = str(row.get("codigo_ibge", "")).zfill(7)
+        pop = _num(row.get("populacao"))
+        if not ibge or ibge == "0000000" or not pop or pop <= 0:
+            continue
+        out.append({
+            "ibge": ibge,
+            "nome": str(row.get("nome", "")).title(),
+            "uf": str(row.get("uf_norm", "")),
+            "regiao": str(row.get("regiao", "") or ""),
+            "pop": int(pop),
+        })
+    return out
+
+
+def _municipios_info(
+    df_per_capita: pd.DataFrame, df_lacunas: pd.DataFrame | None
+) -> dict[str, dict]:
+    """Mapa ibge → {nome, uf, pop} para enriquecer hover (consumo + lacunas)."""
+    info: dict[str, dict] = {}
+    for _, row in df_per_capita.iterrows():
+        ibge = str(row.get("codigo_ibge", "")).zfill(7)
+        if not ibge or ibge in info:
+            continue
+        pop = _num(row.get("populacao"))
+        info[ibge] = {
+            "nome": str(row.get("cidade", "")).title(),
+            "uf": str(row.get("uf", "")),
+            "pop": int(pop) if pop and pop > 0 else 0,
+        }
+    if df_lacunas is not None and not df_lacunas.empty:
+        for _, row in df_lacunas.iterrows():
+            ibge = str(row.get("codigo_ibge", "")).zfill(7)
+            if not ibge or ibge in info:
+                continue
+            pop = _num(row.get("populacao"))
+            info[ibge] = {
+                "nome": str(row.get("nome", "")).title(),
+                "uf": str(row.get("uf_norm", "")),
+                "pop": int(pop) if pop and pop > 0 else 0,
+            }
+    return info

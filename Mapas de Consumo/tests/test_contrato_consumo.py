@@ -2,7 +2,7 @@ import logging
 import math
 import numpy as np
 import pandas as pd
-from grugeen_dashboards.consumo.contrato import _limpar_nan, _registros
+from grugeen_dashboards.consumo.contrato import _limpar_nan, _registros, _lacunas, _municipios_info
 
 _LOG = logging.getLogger("t")
 
@@ -51,3 +51,34 @@ def test_registros_populacao_ausente_metricas_none():
     flor = next(r for r in regs if r["ibge"] == "4205407")
     assert flor["mwh_hab"] is None
     assert flor["cons_100k"] is None
+
+
+def _df_lac():
+    return pd.DataFrame({
+        "codigo_ibge": ["4204202", "1234567"],
+        "nome": ["CHAPECO", "SEM POP"],
+        "uf_norm": ["SC", "SC"],
+        "regiao": ["Sul", "Sul"],
+        "populacao": [200000.0, 0.0],
+    })
+
+
+def test_lacunas_inclui_so_com_populacao():
+    lac = _lacunas(_df_lac())
+    assert len(lac) == 1
+    assert lac[0]["ibge"] == "4204202"
+    assert lac[0]["nome"] == "Chapeco"
+    assert lac[0]["uf"] == "SC"
+    assert lac[0]["pop"] == 200000
+
+
+def test_lacunas_none_retorna_vazio():
+    assert _lacunas(None) == []
+
+
+def test_municipios_info_une_consumo_e_lacunas():
+    info = _municipios_info(_df_pc(), _df_lac())
+    assert info["4205407"]["nome"] == "Florianopolis"
+    assert info["4205407"]["uf"] == "SC"
+    assert info["4204202"]["nome"] == "Chapeco"
+    assert info["1234567"]["pop"] == 0
