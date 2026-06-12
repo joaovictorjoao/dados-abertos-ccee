@@ -10,9 +10,13 @@ def test_normalizar_colapsa_espacos_duplos():
 
 
 def test_normalizar_unifica_apostrofos():
-    # aspas curva, modifier letter e acento agudo viram apóstrofo reto
+    # Aspas curvas (U+2019) sobrevivem ao NFKD e são unificadas em apóstrofo reto.
     assert normalizar("Dias d'Avila") == "DIAS D'AVILA"
-    assert normalizar("Olhos d´Agua") == "OLHOS D'AGUA"
+
+
+def test_normalizar_acento_agudo_isolado_vira_espaco():
+    # U+00B4 (´) decompõe em espaço+combinante no NFKD → vira espaço (igual ao legado).
+    assert normalizar("Olhos d´Agua") == "OLHOS D AGUA"
 
 
 def test_normalizar_aceita_nao_string():
