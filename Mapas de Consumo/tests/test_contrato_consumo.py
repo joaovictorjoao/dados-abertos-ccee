@@ -1,0 +1,110 @@
+import logging
+import math
+import numpy as np
+import pandas as pd
+from grugeen_dashboards.consumo.contrato import _limpar_nan, _registros, _lacunas, _municipios_info
+
+_LOG = logging.getLogger("t")
+
+
+def test_limpar_nan_converte_nan_e_inf_em_none():
+    assert _limpar_nan(float("nan")) is None
+    assert _limpar_nan(float("inf")) is None
+    assert _limpar_nan(1.5) == 1.5
+    assert _limpar_nan({"a": float("nan"), "b": 2}) == {"a": None, "b": 2}
+    assert _limpar_nan([1.0, float("nan")]) == [1.0, None]
+
+
+def _df_pc():
+    return pd.DataFrame({
+        "codigo_ibge": ["4205407", "3550308"],
+        "cidade": ["FLORIANOPOLIS", "SAO PAULO"],
+        "uf": ["SC", "SP"],
+        "regiao": ["Sul", "Sudeste"],
+        "distribuidora": ["CELESC", "CPFL"],
+        "consumo_total_mwh": [500.0, 1000.0],
+        "n_consumidores": [5, 10],
+        "populacao": [500000.0, 1000000.0],
+        "mwh_por_habitante": [0.001, 0.001],
+        "consumidores_por_100k": [1.0, 1.0],
+    })
+
+
+def test_registros_um_por_municipio_com_metricas():
+    regs = _registros(_df_pc())
+    assert len(regs) == 2
+    flor = next(r for r in regs if r["ibge"] == "4205407")
+    assert flor["nome"] == "Florianopolis"
+    assert flor["uf"] == "SC"
+    assert flor["regiao"] == "Sul"
+    assert flor["distribuidora"] == "CELESC"
+    assert flor["gwh"] == 0.5
+    assert flor["nc"] == 5
+    assert flor["pop"] == 500000
+
+
+def test_registros_populacao_ausente_metricas_none():
+    df = _df_pc()
+    df.loc[0, "mwh_por_habitante"] = np.nan
+    df.loc[0, "consumidores_por_100k"] = np.nan
+    regs = _registros(df)
+    flor = next(r for r in regs if r["ibge"] == "4205407")
+    assert flor["mwh_hab"] is None
+    assert flor["cons_100k"] is None
+
+
+def _df_lac():
+    return pd.DataFrame({
+        "codigo_ibge": ["4204202", "1234567"],
+        "nome": ["CHAPECO", "SEM POP"],
+        "uf_norm": ["SC", "SC"],
+        "regiao": ["Sul", "Sul"],
+        "populacao": [200000.0, 0.0],
+    })
+
+
+def test_lacunas_inclui_so_com_populacao():
+    lac = _lacunas(_df_lac())
+    assert len(lac) == 1
+    assert lac[0]["ibge"] == "4204202"
+    assert lac[0]["nome"] == "Chapeco"
+    assert lac[0]["uf"] == "SC"
+    assert lac[0]["pop"] == 200000
+
+
+def test_lacunas_none_retorna_vazio():
+    assert _lacunas(None) == []
+
+
+def test_municipios_info_une_consumo_e_lacunas():
+    info = _municipios_info(_df_pc(), _df_lac())
+    assert info["4205407"]["nome"] == "Florianopolis"
+    assert info["4205407"]["uf"] == "SC"
+    assert info["4204202"]["nome"] == "Chapeco"
+    assert info["1234567"]["pop"] == 0
+
+
+import json
+from grugeen_dashboards.consumo.contrato import montar_contrato_consumo
+
+
+def test_montar_contrato_estrutura_completa():
+    c = montar_contrato_consumo(_df_pc(), _df_lac(), "202604", _LOG)
+    assert c["label"] == "Consumo"
+    assert c["referencia"] == "202604"
+    assert [a["id"] for a in c["abas"]] == ["estado", "municipio", "mwh-hab", "cons-100k", "lacunas"]
+    assert c["abas"][0]["nivel"] == "uf"
+    assert c["abas"][-1]["tipo"] == "lacuna"
+    assert c["filtros_proprios"]["distribuidora"]["depende_de"] == "uf"
+    assert c["filtros_proprios"]["distribuidora"]["opcoes"] == ["CELESC", "CPFL"]
+    assert len(c["registros"]) == 2
+    assert len(c["lacunas"]) == 1
+    assert "4205407" in c["municipios_info"]
+
+
+def test_montar_contrato_e_serializavel_em_json():
+    df = _df_pc()
+    df.loc[0, "mwh_por_habitante"] = float("nan")
+    c = montar_contrato_consumo(df, None, "202604", _LOG)
+    s = json.dumps(c, ensure_ascii=False, allow_nan=False)
+    assert '"label":"Consumo"' in s.replace(" ", "")
