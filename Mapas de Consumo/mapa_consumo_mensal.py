@@ -688,7 +688,16 @@ def _mapa_municipios_coro(
         hovertemplate="%{customdata[0]}<extra></extra>",
         marker_line_color="rgba(255,255,255,0.4)", marker_line_width=0.3,
     )
-    fig.update_geos(**_geo_layout())
+    # Bounds fixos cobrindo todo o Brasil (RR lat≈5.3°N, AC lon≈-74°W, AP lon≈-49.9°W)
+    # fitbounds="locations" só considera o geojson do 1º trace e clipa RR/AP quando
+    # esse trace não os inclui. Bounds fixos garantem viewport completo sempre.
+    fig.update_geos(
+        fitbounds=False,
+        visible=False,
+        bgcolor="rgba(0,0,0,0)",
+        lataxis=dict(range=[-34.5, 6.5]),
+        lonaxis=dict(range=[-74.5, -33.5]),
+    )
     fig.update_layout(**_fig_layout(titulo))
 
     if use_log_scale:
@@ -788,6 +797,14 @@ def _mapa_municipios_coro(
         ))
         del geojson_vazios
 
+    # Trace de borda do estado — Scattergeo (linha) não bloqueia hover do choropleth
+    fig.add_trace(go.Scattergeo(
+        lat=[], lon=[], mode="lines",
+        line=dict(color="#013D1A", width=1.2),
+        showlegend=False, hoverinfo="skip",
+        name="__border__",
+    ))
+
     logger.info("  Serializando HTML ...")
     html = pio.to_html(fig, full_html=False, include_plotlyjs=False)
     del fig, geojson
@@ -864,6 +881,14 @@ def _mapa_lacunas(
         ))
         del geojson_acl
 
+    # Trace de borda do estado — Scattergeo (linha) não bloqueia hover do choropleth
+    fig.add_trace(go.Scattergeo(
+        lat=[], lon=[], mode="lines",
+        line=dict(color="#013D1A", width=1.2),
+        showlegend=False, hoverinfo="skip",
+        name="__border__",
+    ))
+
     logger.info("  Serializando HTML ...")
     html = pio.to_html(fig, full_html=False, include_plotlyjs=False)
     del fig, geojson
@@ -884,6 +909,7 @@ _hover_formatters: dict[str, Callable] = {
 
 def _preparar_filtro_dados_consumo(
     df_per_capita: pd.DataFrame,
+    df_lacunas: 'pd.DataFrame | None',
     geojson_mun_path: Path,
     geojson_lac_path: Path,
     logger: logging.Logger,
@@ -955,12 +981,84 @@ def _preparar_filtro_dados_consumo(
             tabs[key] = {"munData": mun_data, "logMax": round(log_max, 6), "mes": mes_str, "tab": tab_id}
 
     logger.info("  Filtro consumo: %d meses × 3 abas", len(mes_list))
+    # Mapa completo de municípios para hover enriquecido nos sem dados
+    mun_info: dict = {}
+    seen_ibge: set = set()
+    for _, row in df_per_capita.iterrows():
+        ibge = str(row.get("codigo_ibge", "")).zfill(7)
+        if not ibge or ibge in seen_ibge: continue
+        seen_ibge.add(ibge)
+        pop = float(row.get("populacao", 0) or 0)
+        mun_info[ibge] = {
+            "nome": str(row.get("cidade", "")).title(),
+            "uf":   str(row.get("uf", "")),
+            "pop":  int(pop) if pop > 0 else 0,
+        }
+    if df_lacunas is not None and not df_lacunas.empty:
+        for _, row in df_lacunas.iterrows():
+            ibge = str(row.get("codigo_ibge", "")).zfill(7)
+            if not ibge or ibge in seen_ibge: continue
+            seen_ibge.add(ibge)
+            pop = float(row.get("populacao", 0) or 0)
+            mun_info[ibge] = {
+                "nome": str(row.get("nome", "")).title(),
+                "uf":   str(row.get("uf_norm", "")),
+                "pop":  int(pop) if pop > 0 else 0,
+            }
+    logger.info("  munInfo: %d municípios", len(mun_info))
+
+    # Lacunas - mesmo conjunto para todos os meses
+    if df_lacunas is not None and not df_lacunas.empty:
+        lac_mun: dict = {}
+        for _, row in df_lacunas.iterrows():
+            ibge = str(row.get("codigo_ibge", "")).zfill(7)
+            if not ibge or ibge == "0000000": continue
+            pop = float(row.get("populacao", 0) or 0)
+            if pop <= 0: continue
+            uf = str(row.get("uf_norm", ""))
+            nome = str(row.get("nome", "")).title()
+            lac_mun[ibge] = {
+                "uf": uf, "reg": _UF_PARA_REGIAO.get(uf, ""),
+                "v": round(pop, 0), "lv": round(float(np.log1p(pop)), 6),
+                "nome": nome, "pop": int(pop),
+            }
+        if lac_mun:
+            log_mx = float(np.log1p(max(d["v"] for d in lac_mun.values())))
+            for ms in mes_list:
+                tabs[f"lacunas_{ms}"] = {"munData": lac_mun, "logMax": round(log_mx, 6)}
+            logger.info("  Lacunas no filtro: %d municipios", len(lac_mun))
+
+    # Extrai coordenadas de borda para o trace Scattergeo
+    _state_borders: dict = {}
+    if _GEOJSON_EST_CACHE.exists():
+        with open(_GEOJSON_EST_CACHE, encoding="utf-8") as _fb:
+            _gj_b = json.load(_fb)
+        for _feat in _gj_b.get("features", []):
+            _sig = _feat.get("properties", {}).get("sigla", "")
+            if not _sig: continue
+            _geom = _feat.get("geometry", {})
+            _lats: list = []; _lons: list = []
+            _polys = ([_geom.get("coordinates", [])]
+                      if _geom.get("type") == "Polygon"
+                      else _geom.get("coordinates", []))
+            for _poly in _polys:
+                for _ring in _poly:
+                    for _pt in _ring:
+                        _lats.append(round(float(_pt[1]), 4))
+                        _lons.append(round(float(_pt[0]), 4))
+                    _lats.append(None); _lons.append(None)
+            _state_borders[_sig] = {"lat": _lats, "lon": _lons}
+        del _gj_b
+        logger.info("  stateBorders: %d estados", len(_state_borders))
+
     return {
         "reg":    _UF_REGIAO,
         "ufs":    sorted(_UF_PARA_IBGE.keys()),
         "dists":  distribuidoras,
         "meses":  [str(m) for m in mes_list],
         "allCodes": all_codes,
+        "munInfo":  mun_info,
+        "stateBorders": _state_borders,
         "tabs":   tabs,
     }
 
@@ -1233,7 +1331,7 @@ def _salvar_dashboard(
       <option>Norte</option><option>Nordeste</option>
       <option>Centro-Oeste</option><option>Sudeste</option><option>Sul</option>
     </select>
-    <select class="filter-sel" id="fil-uf" onchange="applyFilters()" title="Filtrar por estado (UF)">
+    <select class="filter-sel" id="fil-uf" onchange="onUfChange()" title="Filtrar por estado (UF)">
       <option value="">Todos os estados</option>
     </select>
     {dist_sel_html}
@@ -1290,6 +1388,7 @@ def _salvar_dashboard(
       var ufs=regVal?fd.reg[regVal]:fd.ufs;
       ufs.forEach(function(u){{uSel.add(new Option(u,u))}});
       if(ufs.indexOf(prev)>-1)uSel.value=prev;
+      var dSel2=document.getElementById('fil-dist');if(dSel2)dSel2.value='';
       applyFilters();
     }}
     function clearFilters(){{
@@ -1298,6 +1397,7 @@ def _salvar_dashboard(
       var dSel=document.getElementById('fil-dist');if(dSel)dSel.value='';
       onRegiaoChange();
     }}
+    function onUfChange(){{var d=document.getElementById('fil-dist');if(d)d.value='';applyFilters();}}
     function applyFilters(){{
       var fd=window._FD_C;if(!fd)return;
       var regVal=document.getElementById('fil-regiao').value;
@@ -1351,11 +1451,48 @@ def _salvar_dashboard(
       var bk=ufVal||regVal;
       if(bk&&_BBOX[bk]){{
         var b=_BBOX[bk];
-        Plotly.relayout(plotDiv,{{'geo.fitbounds':false,'geo.lataxis.range':b.lat,'geo.lonaxis.range':b.lon}});
+        var pad=1.2;
+        var cLat=(b.lat[0]+b.lat[1])/2;
+        var cLon=(b.lon[0]+b.lon[1])/2;
+        Plotly.relayout(plotDiv,{{
+          'geo.fitbounds':false,
+          'geo.lataxis.range':[b.lat[0]-pad,b.lat[1]+pad],
+          'geo.lonaxis.range':[b.lon[0]-pad,b.lon[1]+pad],
+          'geo.center.lat':cLat,
+          'geo.center.lon':cLon,
+          'geo.projection.scale':1
+        }});
       }}else{{
-        Plotly.relayout(plotDiv,{{'geo.fitbounds':'locations'}});
+        /* sem filtro: bounds fixos cobrindo todo o Brasil (RR/AP não são clipados) */
+        Plotly.relayout(plotDiv,{{
+          'geo.fitbounds':false,
+          'geo.lataxis.range':[-34.5,6.5],
+          'geo.lonaxis.range':[-74.5,-33.5],
+          'geo.projection.scale':1
+        }});
       }}
     }}
+    var _origTD={{}}
+    /* Captura estado original antes de qualquer restyle */
+    setTimeout(function(){{
+      document.querySelectorAll('.plotly-graph-div').forEach(function(d){{
+        if(d.data) _getOrigData(d);
+      }});
+    }},0);
+    function _getOrigData(d){{
+      var id=d.id||'default';
+      if(!_origTD[id]&&d.data){{
+        _origTD[id]=d.data.map(function(t){{
+          return{{locations:(t.locations||[]).slice(),z:(t.z||[]).slice(),
+            lat:(t.lat||[]).slice(),lon:(t.lon||[]).slice(),
+            text:Array.isArray(t.text)?t.text.slice():t.text,
+            customdata:(t.customdata||[]).slice(),
+            hovertemplate:t.hovertemplate}};
+        }});
+      }}
+      return _origTD[id]||[];
+    }}
+
     function _applyToTab(tabId,regVal,ufVal,distVal){{
       var fd=window._FD_C;if(!fd)return;
       /* identificar chave dos dados (mes + tab) */
@@ -1367,8 +1504,8 @@ def _salvar_dashboard(
       var filtUfs=ufVal?[ufVal]:(regVal?fd.reg[regVal]:null);
       var panel=document.getElementById('tab-'+tabId);if(!panel)return;
 
+      var locs=[],zVals=[],hoverArr=[];
       if(tabData&&mapTabs.indexOf(tabId)>-1){{
-        var locs=[],zVals=[],hoverArr=[];
         Object.keys(tabData.munData).forEach(function(ibge){{
           var d=tabData.munData[ibge];
           if(filtUfs&&filtUfs.indexOf(d.uf)===-1)return;
@@ -1380,14 +1517,133 @@ def _salvar_dashboard(
         var grayCodes=fd.allCodes.filter(function(c){{return!filtSet.has(c)}});
         var plotDiv=panel.querySelector('.plotly-graph-div');
         if(plotDiv&&plotDiv.data&&plotDiv.data.length>0){{
+          _getOrigData(plotDiv);  /* captura antes de qualquer restyle */
           Plotly.restyle(plotDiv,{{locations:[locs],z:[zVals],customdata:[hoverArr]}},[0]);
-          var li=plotDiv.data.length-1;
-          if(li>0)Plotly.restyle(plotDiv,{{locations:[grayCodes],z:[new Array(grayCodes.length).fill(0)]}},[li]);
+          /* Encontra traces por nome (robusto contra variação de índices) */
+          var bIdx=-1, grayIdxs=[];
+          plotDiv.data.forEach(function(t,i){{
+            if(i===0)return;
+            if((t.name||'')==='__border__'){{bIdx=i;}}
+            else{{grayIdxs.push(i);}}
+          }});
+          /* Atualiza lastGray com lógica unificada (filtro ativo ou limpo) */
+          var lastGray=grayIdxs.length>0?grayIdxs[grayIdxs.length-1]:-1;
+          if(lastGray>0){{
+            /* Calcula on-the-fly: gray = não-coloridos, filtrados por UF se ativo */
+            var gGL=[],gGT=[];
+            if(!(distVal&&!filtUfs)){{  /* distVal sem UF → branco */
+              fd.allCodes.forEach(function(c){{
+                if(filtSet.has(c))return;
+                var m=fd.munInfo?fd.munInfo[c]:null;
+                if(filtUfs&&filtUfs.indexOf(m?m.uf:'')===-1)return;
+                gGL.push(c);
+                if(m){{var pop=m.pop>0?Math.round(m.pop).toLocaleString('pt-BR')+' hab':'n/d';
+                  gGT.push('<b>'+m.nome+' — '+m.uf+'</b><br>Consumo ACL: sem dados neste período<br>Habitantes: '+pop);
+                }}else{{gGT.push('Sem dados neste período');}}
+              }});
+            }}
+            Plotly.restyle(plotDiv,{{
+              locations:[gGL.length?gGL:[[]]],z:[new Array(gGL.length).fill(0)],
+              text:[gGT.length?gGT:['']],
+              hovertemplate:['%{{text}}<extra></extra>']
+            }},[lastGray]);
+          }}
+          /* Atualiza borda do estado */
+          if(bIdx>=0&&fd.stateBorders){{
+            if(filtUfs){{
+              var bLat=[],bLon=[];
+              filtUfs.forEach(function(uf){{
+                var b=fd.stateBorders[uf];if(!b)return;
+                bLat=bLat.concat(b.lat);bLon=bLon.concat(b.lon);
+              }});
+              Plotly.restyle(plotDiv,{{lat:[bLat],lon:[bLon]}},[bIdx]);
+            }}else{{Plotly.restyle(plotDiv,{{lat:[[]],lon:[[]]}},([bIdx]));}}
+          }}
           _zoomMap(plotDiv,regVal,ufVal);
         }}
-        var fci=document.getElementById('filter-count');
-        if(fci)fci.textContent=locs.length+' município'+(locs.length!==1?'s':'');
       }}
+      /* aba Por Estado - apenas zoom */
+      if(tabId==='estados'){{
+        var pDiv=panel.querySelector('.plotly-graph-div');
+        if(pDiv){{
+          _zoomMap(pDiv,regVal,ufVal);
+          /* borda no mapa de estados */
+          for(var ti4=0;ti4<(pDiv.data||[]).length;ti4++){{
+            if(pDiv.data[ti4].name==='__border__'){{
+              if(filtUfs&&fd.stateBorders){{
+                var bLat2=[],bLon2=[];
+                filtUfs.forEach(function(uf){{
+                  var b=fd.stateBorders[uf];if(!b)return;
+                  bLat2=bLat2.concat(b.lat);bLon2=bLon2.concat(b.lon);
+                }});
+                Plotly.restyle(pDiv,{{lat:[bLat2],lon:[bLon2]}},[ti4]);
+              }}else{{Plotly.restyle(pDiv,{{lat:[[]],lon:[[]]}},([ti4]));}}
+              break;
+            }}
+          }}
+        }}
+      }}
+      /* aba Lacunas - filtrar mapa + zoom */
+      if(tabId==='lacunas'){{
+        var lacKey='lacunas_'+mes;
+        var lacData=fd.tabs[lacKey];
+        var pDiv=panel.querySelector('.plotly-graph-div');
+        if(lacData&&pDiv&&pDiv.data&&pDiv.data.length>0){{
+          var lLocs=[],lZ=[],lHov=[];
+          Object.keys(lacData.munData).forEach(function(ibge){{
+            var d=lacData.munData[ibge];
+            if(filtUfs&&filtUfs.indexOf(d.uf)===-1)return;
+            lLocs.push(ibge);lZ.push(d.lv);lHov.push(['<b>'+d.nome+' — '+d.uf+'</b><br>Habitantes: '+Math.round(d.pop||0).toLocaleString('pt-BR')+' hab<br>Sem consumidores no ACL']);
+          }});
+          Plotly.restyle(pDiv,{{locations:[lLocs],z:[lZ],customdata:[lHov]}},[0]);
+          if(pDiv.data&&pDiv.data.length>1){{
+            var bIdxLac=-1, grayLacIdxs=[];
+            pDiv.data.forEach(function(t,i){{
+              if(i===0)return;
+              if((t.name||'')==='__border__'){{bIdxLac=i;}}
+              else{{grayLacIdxs.push(i);}}
+            }});
+            /* Limpa todos os traces cinzas */
+            if(grayLacIdxs.length>0){{
+              Plotly.restyle(pDiv,{{locations:grayLacIdxs.map(function(){{return[]}}),z:grayLacIdxs.map(function(){{return[]}})}},grayLacIdxs);
+            }}
+            /* Re-popula último cinza se sem filtro */
+            var lastLacGray=grayLacIdxs.length>0?grayLacIdxs[grayLacIdxs.length-1]:-1;
+            /* ACL overlay: mostra municípios com ACL filtrados por UF se ativo */
+            if(lastLacGray>0){{
+              var lacGL=[],lacGT=[];
+              fd.allCodes.forEach(function(c){{
+                if(lLocs.indexOf(c)>=0)return;  /* já na lac colorida */
+                var m=fd.munInfo?fd.munInfo[c]:null;
+                if(filtUfs&&filtUfs.indexOf(m?m.uf:'')===-1)return;
+                lacGL.push(c);
+                if(m){{var pop=m.pop>0?Math.round(m.pop).toLocaleString('pt-BR')+' hab':'n/d';
+                  lacGT.push('<b>'+m.nome+' — '+m.uf+'</b><br>Possui consumidores no ACL<br>Habitantes: '+pop);
+                }}else{{lacGT.push('Com consumidores no ACL');}}
+              }});
+              Plotly.restyle(pDiv,{{
+                locations:[lacGL.length?lacGL:[[]]],z:[new Array(lacGL.length).fill(0)],
+                text:[lacGT.length?lacGT:['']],
+                hovertemplate:['%{{text}}<extra></extra>']
+              }},[lastLacGray]);
+            }}
+            /* Borda */
+            if(bIdxLac>=0&&fd.stateBorders){{
+              if(filtUfs){{
+                var bLat3=[],bLon3=[];
+                filtUfs.forEach(function(uf){{
+                  var b=fd.stateBorders[uf];if(!b)return;
+                  bLat3=bLat3.concat(b.lat);bLon3=bLon3.concat(b.lon);
+                }});
+                Plotly.restyle(pDiv,{{lat:[bLat3],lon:[bLon3]}},[bIdxLac]);
+              }}else{{Plotly.restyle(pDiv,{{lat:[[]],lon:[[]]}},([bIdxLac]));}}  
+            }}
+          }}
+        }}
+        if(pDiv)_zoomMap(pDiv,regVal,ufVal);
+      }}
+      var fci=document.getElementById('filter-count');
+      if(fci)fci.textContent=locs.length+' município'+(locs.length!==1?'s':'');
 
       /* Filtrar tabela por UF e distribuidora */
       var tvEl=panel.querySelector('.view-table');
@@ -1533,7 +1789,7 @@ def main() -> None:
         # 6. Dados de filtro (Região / UF / Concessionária)
         logger.info("--- Preparando dados de filtro ---")
         filtro_dados_consumo = _preparar_filtro_dados_consumo(
-            df_per_capita, geojson_mun_path, geojson_lac_path, logger
+            df_per_capita, df_lacunas, geojson_mun_path, geojson_lac_path, logger
         )
 
         # 7. Gera dashboard por mês
