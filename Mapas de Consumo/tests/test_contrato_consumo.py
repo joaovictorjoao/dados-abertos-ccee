@@ -82,3 +82,29 @@ def test_municipios_info_une_consumo_e_lacunas():
     assert info["4205407"]["uf"] == "SC"
     assert info["4204202"]["nome"] == "Chapeco"
     assert info["1234567"]["pop"] == 0
+
+
+import json
+from grugeen_dashboards.consumo.contrato import montar_contrato_consumo
+
+
+def test_montar_contrato_estrutura_completa():
+    c = montar_contrato_consumo(_df_pc(), _df_lac(), "202604", _LOG)
+    assert c["label"] == "Consumo"
+    assert c["referencia"] == "202604"
+    assert [a["id"] for a in c["abas"]] == ["estado", "municipio", "mwh-hab", "cons-100k", "lacunas"]
+    assert c["abas"][0]["nivel"] == "uf"
+    assert c["abas"][-1]["tipo"] == "lacuna"
+    assert c["filtros_proprios"]["distribuidora"]["depende_de"] == "uf"
+    assert c["filtros_proprios"]["distribuidora"]["opcoes"] == ["CELESC", "CPFL"]
+    assert len(c["registros"]) == 2
+    assert len(c["lacunas"]) == 1
+    assert "4205407" in c["municipios_info"]
+
+
+def test_montar_contrato_e_serializavel_em_json():
+    df = _df_pc()
+    df.loc[0, "mwh_por_habitante"] = float("nan")
+    c = montar_contrato_consumo(df, None, "202604", _LOG)
+    s = json.dumps(c, ensure_ascii=False, allow_nan=False)
+    assert '"label":"Consumo"' in s.replace(" ", "")
