@@ -9,7 +9,6 @@ import pandas as pd
 
 from grugeen_dashboards.comum import baixar_recurso, fetch, normalizar
 from grugeen_dashboards.comum.regioes import IBGE_PARA_UF, UF_PARA_REGIAO
-from grugeen_dashboards.consumo.aliases import ALIASES_CONSUMO
 
 
 def calcular_per_capita(
