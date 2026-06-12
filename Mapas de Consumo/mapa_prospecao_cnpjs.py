@@ -510,6 +510,14 @@ def _mapa_coro(
         ))
         logger.info("  %d municípios sem dado cobertos (cinza)", len(codigos_cinza))
 
+
+    # Trace de borda — Scattergeo (linha) não bloqueia hover do choropleth
+    fig.add_trace(go.Scattergeo(
+        lat=[], lon=[], mode="lines",
+        line=dict(color="#013D1A", width=1.2),
+        showlegend=False, hoverinfo="skip",
+        name="__border__",
+    ))
     logger.info("  Serializando ...")
     html = pio.to_html(fig, full_html=False, include_plotlyjs=False)
     del fig, geojson
@@ -784,6 +792,42 @@ def _preparar_filtro_dados(
 
     logger.info("  CNAE raw: %d municípios", len(cnae_data))
 
+    # munInfo: hover enriquecido para municípios sem dados dentro do filtro
+    mun_info_p: dict = {}
+    for _, row in df_geo.iterrows():
+        ibge = str(row.get("codigo_ibge", "")).zfill(7)
+        if not ibge or ibge == "0000000": continue
+        pop = float(row.get("populacao", 0) or 0)
+        mun_info_p[ibge] = {
+            "nome": str(row.get("nome_municipio", "")).title(),
+            "uf":   str(row.get("uf", "")),
+            "pop":  int(pop) if pop > 0 else 0,
+        }
+    logger.info("  munInfo prospecao: %d municipios", len(mun_info_p))
+
+    # Extrai coordenadas de borda para o trace Scattergeo
+    _state_borders: dict = {}
+    if _GEOJSON_EST_CACHE.exists():
+        with open(_GEOJSON_EST_CACHE, encoding="utf-8") as _fb:
+            _gj_b = json.load(_fb)
+        for _feat in _gj_b.get("features", []):
+            _sig = _feat.get("properties", {}).get("sigla", "")
+            if not _sig: continue
+            _geom = _feat.get("geometry", {})
+            _lats: list = []; _lons: list = []
+            _polys = ([_geom.get("coordinates", [])]
+                      if _geom.get("type") == "Polygon"
+                      else _geom.get("coordinates", []))
+            for _poly in _polys:
+                for _ring in _poly:
+                    for _pt in _ring:
+                        _lats.append(round(float(_pt[1]), 4))
+                        _lons.append(round(float(_pt[0]), 4))
+                    _lats.append(None); _lons.append(None)
+            _state_borders[_sig] = {"lat": _lats, "lon": _lons}
+        del _gj_b
+        logger.info("  stateBorders: %d estados", len(_state_borders))
+
     return {
         "reg":      _UF_REGIAO,
         "ufs":      sorted(_UF_PARA_IBGE.keys()),
@@ -794,6 +838,8 @@ def _preparar_filtro_dados(
         "dists":    dists_list,
         "tabs":     tabs,
         "cnaeData": cnae_data,
+        "munInfo":  mun_info_p,
+        "stateBorders": _state_borders,
     }
 
 
@@ -945,7 +991,7 @@ def _salvar_dashboard(
       <option>Norte</option><option>Nordeste</option>
       <option>Centro-Oeste</option><option>Sudeste</option><option>Sul</option>
     </select>
-    <select class="filter-sel" id="fil-uf" onchange="applyFilters()" title="Filtrar por estado (UF)">
+    <select class="filter-sel" id="fil-uf" onchange="onUfChange()" title="Filtrar por estado (UF)">
       <option value="">Todos os estados</option>
     </select>
     {dist_sel_html}
@@ -1014,9 +1060,19 @@ def _salvar_dashboard(
       var bk=ufVal||regVal;
       if(bk&&_BBOX[bk]){{
         var b=_BBOX[bk];
-        Plotly.relayout(plotDiv,{{'geo.fitbounds':false,'geo.lataxis.range':b.lat,'geo.lonaxis.range':b.lon}});
+        var pad=1.2;
+        var cLat=(b.lat[0]+b.lat[1])/2;
+        var cLon=(b.lon[0]+b.lon[1])/2;
+        Plotly.relayout(plotDiv,{{
+          'geo.fitbounds':false,
+          'geo.lataxis.range':[b.lat[0]-pad,b.lat[1]+pad],
+          'geo.lonaxis.range':[b.lon[0]-pad,b.lon[1]+pad],
+          'geo.center.lat':cLat,
+          'geo.center.lon':cLon,
+          'geo.projection.scale':1
+        }});
       }}else{{
-        Plotly.relayout(plotDiv,{{'geo.fitbounds':'locations'}});
+        Plotly.relayout(plotDiv,{{'geo.fitbounds':'locations','geo.projection.scale':1}});
       }}
     }}
 
@@ -1030,6 +1086,7 @@ def _salvar_dashboard(
       var ufs=regVal?fd.reg[regVal]:fd.ufs;
       ufs.forEach(function(u){{uSel.add(new Option(u,u))}});
       if(ufs.indexOf(prev)>-1)uSel.value=prev;
+      var dSel2=document.getElementById('fil-dist');if(dSel2)dSel2.value='';
       applyFilters();
     }}
     function clearFilters(){{
@@ -1039,6 +1096,7 @@ def _salvar_dashboard(
       var dSel=document.getElementById('fil-dist');if(dSel)dSel.value='';
       onRegiaoChange();
     }}
+    function onUfChange(){{var d=document.getElementById('fil-dist');if(d)d.value='';applyFilters();}}
     function applyFilters(){{
       var fd=window._FD;if(!fd)return;
       var regVal=document.getElementById('fil-regiao').value;
@@ -1068,6 +1126,26 @@ def _salvar_dashboard(
       if(tid==='demanda')return L+'Demanda estimada: '+_fMW(v)+'<br>Empresas Tier 1: '+_fN(d.t1||0)+'<br>Total: '+_fN(d.total||0)+Di;
       if(tid==='dens')return L+'Densidade: '+_fD(v)+'<br>Tier 1: '+_fN(d.t1||0)+P+Di;
       return L+String(v);
+    }}
+
+    var _origTDP={{}}
+    setTimeout(function(){{
+      document.querySelectorAll('.plotly-graph-div').forEach(function(d){{
+        if(d.data) _getOrigDataP(d);
+      }});
+    }},0);
+    function _getOrigDataP(d){{
+      var id=d.id||'default';
+      if(!_origTDP[id]&&d.data){{
+        _origTDP[id]=d.data.map(function(t){{
+          return{{locations:(t.locations||[]).slice(),z:(t.z||[]).slice(),
+            lat:(t.lat||[]).slice(),lon:(t.lon||[]).slice(),
+            text:Array.isArray(t.text)?t.text.slice():t.text,
+            customdata:(t.customdata||[]).slice(),
+            hovertemplate:t.hovertemplate}};
+        }});
+      }}
+      return _origTDP[id]||[];
     }}
 
     function _applyToTab(tabId,regVal,ufVal,cnaeVal,distVal){{
@@ -1103,9 +1181,46 @@ def _salvar_dashboard(
       var panel=document.getElementById('tab-'+tabId);if(!panel)return;
       var plotDiv=panel.querySelector('.plotly-graph-div');
       if(plotDiv&&plotDiv.data&&plotDiv.data.length>0){{
+        _getOrigDataP(plotDiv);  /* captura antes de qualquer restyle */
         Plotly.restyle(plotDiv,{{locations:[locs],z:[zVals],customdata:[hoverArr]}},[0]);
-        var li=plotDiv.data.length-1;
-        if(li>0)Plotly.restyle(plotDiv,{{locations:[grayCodes],z:[new Array(grayCodes.length).fill(0)]}},[li]);
+        /* Trace lookup por nome */
+        var bIdxP=-1,grayIdxsP=[];
+        plotDiv.data.forEach(function(t,i){{
+          if(i===0)return;
+          if((t.name||'')==='__border__'){{bIdxP=i;}}
+          else{{grayIdxsP.push(i);}}
+        }});
+        var lastGrayP=grayIdxsP.length>0?grayIdxsP[grayIdxsP.length-1]:-1;
+        if(lastGrayP>0){{
+          var gGLP=[],gGTP=[];
+          if(!(distVal&&!filtUfs)){{
+            fd.allCodes.forEach(function(c){{
+              if(filtSet.has(c))return;
+              var m=fd.munInfo?fd.munInfo[c]:null;
+              if(filtUfs&&filtUfs.indexOf(m?m.uf:'')===-1)return;
+              gGLP.push(c);
+              if(m){{var pop=m.pop>0?Math.round(m.pop).toLocaleString('pt-BR')+' hab':'n/d';
+                gGTP.push('<b>'+m.nome+' — '+m.uf+'</b><br>Sem empresas no setor selecionado<br>Habitantes: '+pop);
+              }}else{{gGTP.push('Sem dados');}}
+            }});
+          }}
+          Plotly.restyle(plotDiv,{{
+            locations:[gGLP.length?gGLP:[[]]],z:[new Array(gGLP.length).fill(0)],
+            text:[gGTP.length?gGTP:['']],
+            hovertemplate:['%{{text}}<extra></extra>']
+          }},[lastGrayP]);
+        }}
+        /* Borda */
+        if(bIdxP>=0&&fd.stateBorders){{
+          if(filtUfs){{
+            var bLP=[],bLoP=[];
+            filtUfs.forEach(function(uf){{
+              var b=fd.stateBorders[uf];if(!b)return;
+              bLP=bLP.concat(b.lat);bLoP=bLoP.concat(b.lon);
+            }});
+            Plotly.restyle(plotDiv,{{lat:[bLP],lon:[bLoP]}},[bIdxP]);
+          }}else{{Plotly.restyle(plotDiv,{{lat:[[]],lon:[[]]}},([bIdxP]));}}  
+        }}
         _zoomMap(plotDiv,regVal,ufVal);
       }}
       /* Filtrar tabela */
