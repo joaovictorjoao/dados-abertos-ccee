@@ -1,5 +1,6 @@
 """Funções auxiliares compartilhadas entre as seções do dashboard."""
 
+from .energia import prevent_sleep, restore_sleep
 from .formato import (
     formatar_br, fmt_gwh, fmt_mwh, fmt_mwh_hab, fmt_cons_100k, fmt_pop,
 )
