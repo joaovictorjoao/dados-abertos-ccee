@@ -124,12 +124,13 @@ def test_carregar_municipios_usa_cache_e_normaliza(tmp_path):
 
 
 def test_baixar_populacao_parseia_json_da_api(tmp_path, monkeypatch):
+    import grugeen_dashboards.comum.ibge as _ibge
     cache = tmp_path / "pop.csv"
     fake = [{"resultados": [{"series": [
         {"localidade": {"id": "3550308"}, "serie": {"2022": "1000000"}},
     ]}]}]
     import json as _json
-    monkeypatch.setattr(cdados, "fetch", lambda url, timeout=30: _json.dumps(fake).encode("utf-8"))
+    monkeypatch.setattr(_ibge, "fetch", lambda url, timeout=30: _json.dumps(fake).encode("utf-8"))
     df = baixar_populacao("http://api", cache, _LOG)
     assert df.iloc[0]["codigo_ibge"] == "3550308"
     assert df.iloc[0]["populacao"] == 1_000_000
