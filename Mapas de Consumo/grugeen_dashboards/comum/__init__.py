@@ -8,6 +8,7 @@ from .http import fetch, baixar_recurso
 from .logging_setup import setup_logging
 from .marca import logo_data_uri
 from .energia import prevent_sleep, restore_sleep
+from .regioes import UF_PARA_IBGE, IBGE_PARA_UF, UF_PARA_REGIAO
 
 __all__ = [
     "formatar_br", "fmt_gwh", "fmt_mwh", "fmt_mwh_hab", "fmt_cons_100k", "fmt_pop",
@@ -16,4 +17,5 @@ __all__ = [
     "setup_logging",
     "logo_data_uri",
     "prevent_sleep", "restore_sleep",
+    "UF_PARA_IBGE", "IBGE_PARA_UF", "UF_PARA_REGIAO",
 ]
