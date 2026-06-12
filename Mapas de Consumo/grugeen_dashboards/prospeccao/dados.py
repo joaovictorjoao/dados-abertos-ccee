@@ -21,3 +21,28 @@ def carregar_resumo(arquivo_resumo: Path, logger: logging.Logger) -> pd.DataFram
     df["demanda_kW"] = df["cnae_divisao"].map(DEMANDA_kW).fillna(300) * df["total_empresas"]
     logger.info("  %d linhas (combinações município × CNAE)", len(df))
     return df
+
+
+def agregar_por_municipio(df: pd.DataFrame, logger: logging.Logger) -> pd.DataFrame:
+    """Agrega todas as divisões CNAE por município (tiers, demanda MW, CNAE dominante)."""
+    logger.info("Agregando por município ...")
+    agg = (
+        df.groupby(["uf", "nome_municipio"])
+        .agg(
+            total_empresas=("total_empresas", "sum"),
+            tier1=("total_empresas", lambda x: x[df.loc[x.index, "cnae_tier"] == 1].sum()),
+            tier2=("total_empresas", lambda x: x[df.loc[x.index, "cnae_tier"] == 2].sum()),
+            demanda_MW=("demanda_kW", lambda x: x.sum() / 1000),
+            cnae_top=("cnae_descricao", lambda x: (
+                df.loc[x.index].groupby("cnae_descricao")["total_empresas"].sum().idxmax()
+            )),
+        )
+        .reset_index()
+    )
+    agg["nome_norm"] = agg["nome_municipio"].apply(normalizar)
+    agg["nome_norm"] = agg.apply(
+        lambda r: ALIASES_PROSPECCAO.get((r["nome_norm"], r["uf"]), r["nome_norm"]), axis=1
+    )
+    agg["regiao"] = agg["uf"].map(UF_PARA_REGIAO).fillna("")
+    logger.info("  %d municípios únicos", len(agg))
+    return agg
