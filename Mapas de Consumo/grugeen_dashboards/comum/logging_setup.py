@@ -1,6 +1,5 @@
 """Configuração de logging com arquivo por execução (timestamp) + stdout UTF-8."""
 
-import io
 import logging
 import sys
 from datetime import datetime
@@ -20,8 +19,15 @@ def setup_logging(prefixo: str, pasta_logs: Path | None) -> logging.Logger:
         log_file = pasta_logs / f"{prefixo}_{ts}.log"
         handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
 
-    stream = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    handlers.append(logging.StreamHandler(stream))
+    # Garante saída UTF-8 no console (Windows usa cp1252 por padrão) reconfigurando
+    # o stream no lugar — não cria um wrapper novo que fecharia o buffer (o que
+    # quebraria a captura do pytest). Degrada graciosamente quando stdout não
+    # suporta reconfigure (ex.: capturado em testes).
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+    handlers.append(logging.StreamHandler(sys.stdout))
 
     logging.basicConfig(
         level=logging.INFO,
