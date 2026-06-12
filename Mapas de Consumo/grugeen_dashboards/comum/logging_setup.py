@@ -1,6 +1,8 @@
 """Configuração de logging com arquivo por execução (timestamp) + stdout UTF-8."""
 
+import io
 import logging
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -18,7 +20,8 @@ def setup_logging(prefixo: str, pasta_logs: Path | None) -> logging.Logger:
         log_file = pasta_logs / f"{prefixo}_{ts}.log"
         handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
 
-    handlers.append(logging.StreamHandler())
+    stream = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    handlers.append(logging.StreamHandler(stream))
 
     logging.basicConfig(
         level=logging.INFO,
