@@ -64,3 +64,55 @@ def calcular_lacunas(
         len(df), len(df_municipios_ibge),
     )
     return df
+
+
+def agregar_por_estado(
+    arquivo_entrada: Path, separador: str, logger: logging.Logger
+) -> pd.DataFrame:
+    """Soma consumo ACL por UF. O arquivo usa ponto decimal — TRY_CAST direto."""
+    arquivo_fwd = str(arquivo_entrada).replace("\\", "/")
+    logger.info("Agregando por estado ...")
+    sql = f"""
+    SELECT
+        MES_REFERENCIA,
+        TRIM(UPPER(ESTADO_CARGA))        AS uf,
+        COUNT(DISTINCT CNPJ_CARGA)       AS n_consumidores,
+        SUM(TRY_CAST(CONSUMO_CARGA_ACL AS DOUBLE)) AS consumo_total_mwh
+    FROM read_csv('{arquivo_fwd}', delim='{separador}', header=true,
+                  ignore_errors=true, all_varchar=true)
+    WHERE ESTADO_CARGA IS NOT NULL AND TRIM(ESTADO_CARGA) != ''
+    GROUP BY MES_REFERENCIA, TRIM(UPPER(ESTADO_CARGA))
+    ORDER BY MES_REFERENCIA, uf
+    """
+    df = duckdb.sql(sql).df()
+    df["consumo_total_gwh"] = df["consumo_total_mwh"] / 1_000
+    logger.info("  %d estados", len(df))
+    return df
+
+
+def agregar_por_cidade(
+    arquivo_entrada: Path, separador: str, logger: logging.Logger
+) -> pd.DataFrame:
+    """Soma consumo ACL por cidade+UF, incluindo a distribuidora dominante."""
+    arquivo_fwd = str(arquivo_entrada).replace("\\", "/")
+    logger.info("Agregando por cidade ...")
+    sql = f"""
+    SELECT
+        MES_REFERENCIA,
+        TRIM(UPPER(CIDADE_CARGA))        AS cidade,
+        TRIM(UPPER(ESTADO_CARGA))        AS uf,
+        COUNT(DISTINCT CNPJ_CARGA)       AS n_consumidores,
+        SUM(TRY_CAST(CONSUMO_CARGA_ACL AS DOUBLE)) AS consumo_total_mwh,
+        FIRST(TRIM(UPPER(SIGLA_PERFIL_AGENTE_DISTRIBUIDORA))
+              ORDER BY TRY_CAST(CONSUMO_CARGA_ACL AS DOUBLE) DESC NULLS LAST)
+              AS distribuidora
+    FROM read_csv('{arquivo_fwd}', delim='{separador}', header=true,
+                  ignore_errors=true, all_varchar=true)
+    WHERE CIDADE_CARGA IS NOT NULL AND TRIM(CIDADE_CARGA) != ''
+      AND ESTADO_CARGA IS NOT NULL AND TRIM(ESTADO_CARGA) != ''
+    GROUP BY MES_REFERENCIA, TRIM(UPPER(CIDADE_CARGA)), TRIM(UPPER(ESTADO_CARGA))
+    ORDER BY consumo_total_mwh DESC NULLS LAST
+    """
+    df = duckdb.sql(sql).df()
+    logger.info("  %d municípios", len(df))
+    return df

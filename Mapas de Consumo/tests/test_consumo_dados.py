@@ -1,7 +1,12 @@
 import logging
 import numpy as np
 import pandas as pd
-from grugeen_dashboards.consumo.dados import calcular_per_capita, calcular_lacunas
+from grugeen_dashboards.consumo.dados import (
+    calcular_per_capita,
+    calcular_lacunas,
+    agregar_por_estado,
+    agregar_por_cidade,
+)
 
 _LOG = logging.getLogger("t")
 
@@ -68,3 +73,32 @@ def test_lacunas_descarta_sem_populacao():
     })
     out = calcular_lacunas(_ibge(), pop, {"3550308"}, _LOG)
     assert set(out["codigo_ibge"]) == {"4205407"}   # Rio cai (pop NaN)
+
+
+def _csv_consumo(tmp_path):
+    # CSV pequeno no formato CCEE (delim ';', ponto decimal)
+    p = tmp_path / "mini.csv"
+    p.write_text(
+        "MES_REFERENCIA;ESTADO_CARGA;CIDADE_CARGA;CNPJ_CARGA;CONSUMO_CARGA_ACL;SIGLA_PERFIL_AGENTE_DISTRIBUIDORA\n"
+        "202604;SP;SAO PAULO;111;100.5;CPFL\n"
+        "202604;SP;SAO PAULO;222;200.0;CPFL\n"
+        "202604;SC;FLORIANOPOLIS;333;50.0;CELESC\n",
+        encoding="utf-8",
+    )
+    return p
+
+
+def test_agregar_por_estado_soma_e_converte_gwh(tmp_path):
+    df = agregar_por_estado(_csv_consumo(tmp_path), ";", _LOG)
+    sp = df[df["uf"] == "SP"].iloc[0]
+    assert sp["n_consumidores"] == 2
+    assert sp["consumo_total_mwh"] == 300.5
+    assert abs(sp["consumo_total_gwh"] - 0.3005) < 1e-9
+
+
+def test_agregar_por_cidade_inclui_distribuidora_dominante(tmp_path):
+    df = agregar_por_cidade(_csv_consumo(tmp_path), ";", _LOG)
+    sp = df[df["cidade"] == "SAO PAULO"].iloc[0]
+    assert sp["uf"] == "SP"
+    assert sp["n_consumidores"] == 2
+    assert sp["distribuidora"] == "CPFL"
