@@ -1,11 +1,15 @@
 import logging
 import numpy as np
 import pandas as pd
+import grugeen_dashboards.consumo.dados as cdados
 from grugeen_dashboards.consumo.dados import (
     calcular_per_capita,
     calcular_lacunas,
     agregar_por_estado,
     agregar_por_cidade,
+    carregar_municipios,
+    baixar_populacao,
+    salvar_distribuidoras_cache,
 )
 
 _LOG = logging.getLogger("t")
@@ -102,3 +106,43 @@ def test_agregar_por_cidade_inclui_distribuidora_dominante(tmp_path):
     assert sp["uf"] == "SP"
     assert sp["n_consumidores"] == 2
     assert sp["distribuidora"] == "CPFL"
+
+
+def test_carregar_municipios_usa_cache_e_normaliza(tmp_path):
+    cache = tmp_path / "municipios.csv"
+    cache.write_text(
+        "codigo_ibge,nome,codigo_uf,latitude,longitude\n"
+        "3550308,São Paulo,35,-23.5,-46.6\n",
+        encoding="utf-8",
+    )
+    df = carregar_municipios("http://ignorado", cache, _LOG)
+    row = df.iloc[0]
+    assert row["nome_norm"] == "SAO PAULO"
+    assert row["uf_norm"] == "SP"
+    assert row["codigo_ibge"] == "3550308"
+    assert row["latitude"] == -23.5
+
+
+def test_baixar_populacao_parseia_json_da_api(tmp_path, monkeypatch):
+    cache = tmp_path / "pop.csv"
+    fake = [{"resultados": [{"series": [
+        {"localidade": {"id": "3550308"}, "serie": {"2022": "1000000"}},
+    ]}]}]
+    import json as _json
+    monkeypatch.setattr(cdados, "fetch", lambda url, timeout=30: _json.dumps(fake).encode("utf-8"))
+    df = baixar_populacao("http://api", cache, _LOG)
+    assert df.iloc[0]["codigo_ibge"] == "3550308"
+    assert df.iloc[0]["populacao"] == 1_000_000
+    assert cache.exists()  # gravou o cache
+
+
+def test_salvar_distribuidoras_cache(tmp_path):
+    out = tmp_path / "dist.csv"
+    geo = pd.DataFrame({
+        "codigo_ibge": ["3550308", "3550308", "4205407"],
+        "distribuidora": ["cpfl", "cpfl", ""],
+    })
+    salvar_distribuidoras_cache(geo, out, _LOG)
+    saved = pd.read_csv(out, dtype=str)
+    assert list(saved["codigo_ibge"]) == ["3550308"]   # dedup + descarta vazio
+    assert saved.iloc[0]["distribuidora"] == "CPFL"     # upper
