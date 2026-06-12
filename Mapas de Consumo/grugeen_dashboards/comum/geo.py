@@ -5,8 +5,10 @@ import unicodedata
 
 import pandas as pd
 
-# Variantes de apóstrofo (curly quotes, modifier letter, acento agudo, crase) → '
-_APOSTROFOS = ("'", "'", "ʼ", "´", "`")
+# Variantes de apóstrofo (curly quotes, modifier letter, acento agudo, crase) -> '
+# Escapes \u para imunidade a problemas de codificação:
+#   U+2018 ' | U+2019 ' | U+02BC ʼ | U+00B4 ´ | U+0060 `
+_APOSTROFOS = ("‘", "’", "ʼ", "´", "`")
 
 
 def normalizar(texto: object) -> str:
