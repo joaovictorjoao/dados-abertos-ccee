@@ -15,3 +15,12 @@ def test_setup_logging_cria_arquivo_com_prefixo(tmp_path):
 def test_setup_logging_retorna_logger():
     logger = setup_logging("x", None)
     assert isinstance(logger, logging.Logger)
+
+
+def test_setup_logging_grava_utf8(tmp_path):
+    logger = setup_logging("utf8", tmp_path)
+    logger.info("Geração de energia — São Paulo")
+    for h in logging.root.handlers:
+        h.flush()
+    arquivos = list(tmp_path.glob("utf8_*.log"))
+    assert "Geração de energia — São Paulo" in arquivos[0].read_text(encoding="utf-8")
