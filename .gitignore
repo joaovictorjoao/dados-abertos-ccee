@@ -45,3 +45,7 @@ assets/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Saidas geradas de extracao (dados volumosos, nao versionar)
+Extração Consumo Horário/bases/*.csv
+Extração Consumo Horário/bases/*.xlsx
