@@ -6,3 +6,4 @@ from .formato import (
 from .geo import normalizar, geocodificar
 from .http import fetch, baixar_recurso
 from .logging_setup import setup_logging
+from .marca import logo_data_uri
