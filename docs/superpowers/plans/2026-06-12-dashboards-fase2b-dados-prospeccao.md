@@ -375,7 +375,7 @@ ALIASES_PROSPECCAO: dict[tuple[str, str], str] = {
 - [ ] **Step 4: Verificar integridade**
 
 Run: `python -c "from grugeen_dashboards.prospeccao.constantes import DEMANDA_kW; from grugeen_dashboards.prospeccao.aliases import ALIASES_PROSPECCAO; print(len(DEMANDA_kW), len(ALIASES_PROSPECCAO))"`
-Expected: `49 30`.
+Expected: `50 30`.
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -579,8 +579,8 @@ Expected: `ok`.
 - **Parity:** `carregar_resumo` e `agregar_por_municipio` preservam a lógica do legado
   (tiers via filtro de `cnae_tier`, `demanda_MW = soma(demanda_kW)/1000`, `cnae_top`
   idxmax, normalização + aliases + região).
-- **Placeholders:** nenhum — constantes e aliases inline (30 e 49 entradas), com
-  verificação de contagem.
+- **Placeholders:** nenhum — constantes e aliases inline (50 divisões CNAE e 30 aliases),
+  com verificação de contagem.
 - **Não-objetivo:** monólitos intactos; geocodificação fica para o entrypoint (usará
   `comum.geocodificar` com `coluna_local="nome_municipio"` e `ALIASES_PROSPECCAO`).
 
